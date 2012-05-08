@@ -153,7 +153,7 @@ module YARD
             if @source[@index] == '"'
               parse_quoted_string
             elsif @source[@index] == "{"
-              parse_braces
+              command.words << parse_braces
             else
               command.words << parse_unquoted_word
             end
@@ -180,8 +180,6 @@ module YARD
           word = BracedWord.new(line_no, char_no)
 
           start = @index
-
-          @index += 1
           level = 1
 
           while true
@@ -199,6 +197,7 @@ module YARD
               level -= 1
               if level == 0
                 word.parts << @source[(start+1)...@index]
+                @index += 1
                 return word
               end
             when "\\"

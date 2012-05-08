@@ -70,6 +70,12 @@ describe YARD::Parser::Tcl::TclParser do
       command.should have(1).comments
       command.comments[0].text.should == "# Define a proc\n"
     end
+
+    it "correctly parses braced words" do
+      @parser = YARD::Parser::Tcl::TclParser.new("namespace eval SomeNamespace {}")
+      command = @parser.parse_command
+      command.should have(4).words
+    end
   end
 
   describe "#parse_braces" do
@@ -80,6 +86,24 @@ describe YARD::Parser::Tcl::TclParser do
       word.should be_a(YARD::Parser::Tcl::BracedWord)
       word.should have(1).parts
       word.parts[0].should == " hello world "
+    end
+
+    it "parses an empty braced word" do
+      @parser = YARD::Parser::Tcl::TclParser.new("{}")
+      word = @parser.parse_braces
+
+      word.should be_a(YARD::Parser::Tcl::BracedWord)
+      word.should have(1).parts
+      word.parts[0].should == ""
+    end
+
+    it "correctly handles braced words with newlines" do
+      @parser = YARD::Parser::Tcl::TclParser.new("{\n  hello\n  world\n}")
+      word = @parser.parse_braces
+
+      word.should be_a(YARD::Parser::Tcl::BracedWord)
+      word.should have(1).parts
+      word.parts[0].should == "\n  hello\n  world\n"
     end
   end
 end
