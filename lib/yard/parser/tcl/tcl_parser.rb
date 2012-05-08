@@ -111,7 +111,7 @@ module YARD
         end
 
         def parse_command
-          command = Command.new(char_no, line_no)
+          command = Command.new(line_no, char_no)
           command.comments = parse_comments
 
           while true
