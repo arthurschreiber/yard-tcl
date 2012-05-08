@@ -1,9 +1,10 @@
-require "yard/tcl_parser"
+require "yard"
+require "yard/parser/tcl/tcl_parser"
 
-describe TclParser do
+describe YARD::Parser::Tcl::TclParser do
   describe "parse_comments" do
     it "returns a list of parsed comment" do
-      @parser = TclParser.new("# This is a comment")
+      @parser = YARD::Parser::Tcl::TclParser.new("# This is a comment")
       comments = @parser.parse_comments
 
       comments.should have(1).item
@@ -14,7 +15,7 @@ describe TclParser do
     end
 
     it "parses indented singe-line comments" do
-      @parser = TclParser.new("    # This is a comment")
+      @parser = YARD::Parser::Tcl::TclParser.new("    # This is a comment")
       comments = @parser.parse_comments
 
       comments.should have(1).items
@@ -25,7 +26,7 @@ describe TclParser do
     end
 
     it "parses multi-line comments" do
-      @parser = TclParser.new("# This is a comment\n# spanning multiple lines")
+      @parser = YARD::Parser::Tcl::TclParser.new("# This is a comment\n# spanning multiple lines")
       comments = @parser.parse_comments
 
       comments.should have(2).items
@@ -42,7 +43,7 @@ describe TclParser do
 
   describe "#parse_command" do
     it "parses and returns the next command from the source" do
-      @parser = TclParser.new("expr 1 + 2")
+      @parser = YARD::Parser::Tcl::TclParser.new("expr 1 + 2")
       command = @parser.parse_command
 
       command.should have(4).words
@@ -53,14 +54,14 @@ describe TclParser do
     end
 
     it "returns nil if all commands have been parsed" do
-      @parser = TclParser.new("expr 1 + 2\nproc something\n")
+      @parser = YARD::Parser::Tcl::TclParser.new("expr 1 + 2\nproc something\n")
       @parser.parse_command.should_not be_nil
       @parser.parse_command.should_not be_nil
       @parser.parse_command.should be_nil
     end
 
     it "assigns any preceding comments to the command" do
-      @parser = TclParser.new("# Add 1 to 2\nexpr 1 + 2\n# Define a proc\nproc something\n")
+      @parser = YARD::Parser::Tcl::TclParser.new("# Add 1 to 2\nexpr 1 + 2\n# Define a proc\nproc something\n")
       command = @parser.parse_command
       command.should have(1).comments
       command.comments[0].text.should == "# Add 1 to 2\n"
