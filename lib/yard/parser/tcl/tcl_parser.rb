@@ -57,6 +57,15 @@ module YARD
         end
       end
 
+      class BracedWord
+        attr_accessor :parts
+
+        def initialize(line_no, char_no)
+          @line_no, @char_no = line_no, char_no
+          @parts = []
+        end
+      end
+
       class CommandSubstitution < String
       end
 
@@ -165,6 +174,37 @@ module YARD
           end
 
           command.words.size > 0 ? command : nil
+        end
+
+        def parse_braces
+          word = BracedWord.new(line_no, char_no)
+
+          start = @index
+
+          @index += 1
+          level = 1
+
+          while true
+            while @index < @size && CHAR_TYPE[@source[@index += 1]] == TYPE_NORMAL
+            end
+
+            if !(@index < @size)
+              raise "Missing closing brace"
+            end
+
+            case @source[@index]
+            when '{'
+              level += 1
+            when '}'
+              level -= 1
+              if level == 0
+                word.parts << @source[(start+1)...@index]
+                return word
+              end
+            when "\\"
+              raise "Backslash in braces not supported yet"
+            end
+          end
         end
 
         def parse_unquoted_word

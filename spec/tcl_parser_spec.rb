@@ -71,4 +71,15 @@ describe YARD::Parser::Tcl::TclParser do
       command.comments[0].text.should == "# Define a proc\n"
     end
   end
+
+  describe "#parse_braces" do
+    it "parses a braced word" do
+      @parser = YARD::Parser::Tcl::TclParser.new("{ hello world }")
+      word = @parser.parse_braces
+
+      word.should be_a(YARD::Parser::Tcl::BracedWord)
+      word.should have(1).parts
+      word.parts[0].should == " hello world "
+    end
+  end
 end
