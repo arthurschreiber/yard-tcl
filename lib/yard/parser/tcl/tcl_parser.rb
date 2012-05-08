@@ -2,15 +2,31 @@ module YARD
   module Parser
     module Tcl
       class Command
-        attr_accessor :line_no
-        attr_accessor :char_no
+        attr_accessor :line
+        attr_accessor :char
         attr_accessor :words
         attr_accessor :comments
 
-        def initialize(line_no, char_no)
-          @line_no, @char_no = line_no, char_no
+        def initialize(line, char)
+          @line, @char = line, char
           @words = []
           @comments = []
+        end
+
+        def show
+          "\t#{line}: asdf"
+        end
+
+        def to_s
+          "No source available, yay!"
+        end
+
+        def comments_hash_flag
+          false
+        end
+
+        def comments_range
+          nil
         end
       end
 
@@ -21,6 +37,10 @@ module YARD
 
         def initialize(line_no, char_no)
           @line_no, @char_no = line_no, char_no
+        end
+
+        def to_s
+          @text.gsub(/^(\#+)\s{0,1}/, '').chomp
         end
       end
 
