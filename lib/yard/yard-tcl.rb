@@ -26,18 +26,38 @@ module YARD
         end
 
         include Parser::Tcl
+
+        def parse_block(word, opts = {})
+          push_state(opts) do
+            t = Parser::Tcl::TclParser.new(word.parts[0])
+            t.line_no = word.line_no
+            t.parse
+
+            parser.process(t.enumerator)
+          end
+        end
       end
 
       class ProcHandler < Base
         handles Command
 
         process do
-          begin
-            if statement.words[0].parts[0] == "proc"
-              register MethodObject.new(:root, statement.words[1].parts[0])
+          if statement.words[0].parts[0] == "proc"
+            register MethodObject.new(namespace, statement.words[1].parts[0])
+          end
+        end
+      end
+
+      class NamespaceHandler < Base
+        handles Command
+
+        process do
+          if statement.words.length > 2
+            if statement.words[0].parts[0] == "namespace" && statement.words[1].parts[0] == "eval"
+              modname = statement.words[2].parts[0]
+              mod = register ModuleObject.new(namespace, modname)
+              parse_block(statement.words[3], :namespace => mod)
             end
-          rescue => e
-            puts e
           end
         end
       end

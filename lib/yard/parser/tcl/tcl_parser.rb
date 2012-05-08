@@ -13,12 +13,16 @@ module YARD
           @comments = []
         end
 
+        def line
+          @words.first.line_no
+        end
+
         def show
           "\t#{line}: asdf"
         end
 
         def to_s
-          "No source available, yay!"
+          @words.join " "
         end
 
         def comments_hash_flag
@@ -47,6 +51,8 @@ module YARD
       class UnquotedWord
         attr_accessor :parts
 
+        attr_reader :line_no
+
         def initialize(line_no, char_no)
           @line_no, @char_no = line_no, char_no
           @parts = []
@@ -55,14 +61,24 @@ module YARD
         def simple?
           @parts.none? { |part| part.is_a?(CommandSubstitution) || part.is_a?(VariableSubstitution) }
         end
+
+        def to_s
+          @parts.join ""
+        end
       end
 
       class BracedWord
         attr_accessor :parts
 
+        attr_reader :line_no, :char_no
+
         def initialize(line_no, char_no)
           @line_no, @char_no = line_no, char_no
           @parts = []
+        end
+
+        def to_s
+          "{#{@parts.join ""}}"
         end
       end
 
@@ -103,6 +119,8 @@ module YARD
 
         CHAR_TYPE["{"]  = TYPE_BRACE
         CHAR_TYPE["}"]  = TYPE_BRACE
+
+        attr_accessor :line_no
 
         def initialize(source, file = '(stdin)')
           @source = source
@@ -201,13 +219,13 @@ module YARD
                 return word
               end
             when "\\"
-              raise "Backslash in braces not supported yet"
+              #raise "Backslash in braces not supported yet"
             end
           end
         end
 
         def parse_unquoted_word
-          word = UnquotedWord.new(char_no, line_no)
+          word = UnquotedWord.new(line_no, char_no)
 
           while @index < @size && ((type = CHAR_TYPE[@source[@index]]) & (TYPE_SPACE | TYPE_COMMAND_END) == 0)
             start = @index
