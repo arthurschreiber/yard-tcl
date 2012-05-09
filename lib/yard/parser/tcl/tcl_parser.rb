@@ -1,28 +1,106 @@
+require 'ffi'
+
 module YARD
   module Parser
     module Tcl
+
+      module FFI
+        extend ::FFI::Library
+
+        ffi_lib "tcl"
+
+        class Token < ::FFI::Struct
+          WORD        = 1
+          SIMPLE_WORD = 2
+          TEXT        = 4
+          BS          = 8
+          COMMAND     = 16
+          VARIABLE    = 32
+          SUB_EXPR    = 64
+          OPERATOR    = 128
+          EXPAND_WORD = 256
+
+          layout({
+            # Type of token, such as TCL_TOKEN_WORD
+            :type => :int,
+
+            # A String starting at the first character in the token
+            :start => :pointer,
+
+            # Number of bytes in the token
+            :size => :int,
+
+            # Number of subtokens in this token
+            :numComponents => :int
+          })
+
+          def content
+            self[:start].read_string(self[:size])
+          end
+        end
+
+        class Parse < ::FFI::Struct
+          SUCCESS           = 0
+          QUOTE_EXTRA       = 1
+          BRACE_EXTRA       = 2
+          MISSING_BRACE     = 3
+          MISSING_BRACKET   = 4
+          MISSING_PAREN     = 5
+          MISSING_QUOTE     = 6
+          MISSING_VAR_BRACE = 7
+          SYNTAX            = 8
+          BAD_NUMBER        = 9
+
+          layout({
+            :commentStart    => :pointer,
+            :commentSize     => :int,
+            :commandStart    => :pointer,
+            :commandSize     => :int,
+            :numWords        => :int,
+            :tokenPtr        => :pointer,
+            :numTokens       => :int,
+            :tokensAvailable => :int,
+            :errorType       => :int,
+            :string          => :pointer,
+            :end             => :pointer,
+            :interp          => :pointer,
+            :term            => :pointer,
+            :incomplete      => :int,
+            :staticTokens    => [Token, 20]
+          })
+
+          def command
+            self[:commandStart].read_string(self[:commandSize])
+          end
+
+          def comments
+            if self[:commentStart].address != 0
+              self[:commentStart].read_string(self[:commentSize]).to_s.gsub(/^(\#+)\s{0,1}/, '')
+            end
+          end
+
+          def tokens
+            token_arr = ::FFI::Pointer.new(Tcl::FFI::Token, self[:tokenPtr])
+            (0...self[:numTokens]).map do |i|
+              FFI::Token.new(token_arr[i])
+            end
+          end
+        end
+
+        attach_function :parse_command, :Tcl_ParseCommand, [:pointer, :pointer, :int, :int, :pointer], :int
+        attach_function :free_parse, :Tcl_FreeParse, [:pointer], :void
+      end
+
       class Command
-        attr_accessor :line
-        attr_accessor :char
-        attr_accessor :words
+        attr_accessor :tokens
+        attr_reader :line
         attr_accessor :comments
 
-        def initialize(line, char)
-          @line, @char = line, char
-          @words = []
-          @comments = []
-        end
-
-        def line
-          @words.first.line_no
-        end
-
-        def show
-          "\t#{line}: asdf"
-        end
-
-        def to_s
-          @words.join " "
+        def initialize(content, line)
+          @content = content
+          @line = line
+          @tokens = []
+          @comments = ""
         end
 
         def comments_hash_flag
@@ -30,351 +108,139 @@ module YARD
         end
 
         def comments_range
-          nil
+          line
+        end
+
+        def show
+          ""
         end
       end
 
-      class Comment
-        attr_accessor :line_no
-        attr_accessor :char_no
-        attr_accessor :text
+      class Token
+        attr_accessor :tokens
 
-        def initialize(line_no, char_no)
-          @line_no, @char_no = line_no, char_no
+        def initialize(content)
+          @content = content
+          @tokens = []
         end
 
         def to_s
-          @text.gsub(/^(\#+)\s{0,1}/, '').chomp
+          @content
+        end
+
+        class << self
+          def for_type(type)
+            case type
+            when FFI::Token::WORD
+              WordToken
+            when FFI::Token::SIMPLE_WORD
+              SimpleWordToken
+            when FFI::Token::TEXT
+              TextToken
+            when FFI::Token::BS
+              BsToken
+            when FFI::Token::COMMAND
+              CommandToken
+            when FFI::Token::VARIABLE
+              VariableToken
+            when FFI::Token::SUB_EXPR
+              SubExprToken
+            when FFI::Token::OPERATOR
+              OperatorToken
+            when FFI::Token::EXPAND_WORD
+              ExpandWordToken
+            end
+          end
         end
       end
 
-      class UnquotedWord
-        attr_accessor :parts
-
-        attr_reader :line_no
-
-        def initialize(line_no, char_no)
-          @line_no, @char_no = line_no, char_no
-          @parts = []
-        end
-
-        def simple?
-          @parts.none? { |part| part.is_a?(CommandSubstitution) || part.is_a?(VariableSubstitution) }
-        end
-
-        def to_s
-          @parts.join ""
-        end
+      class WordToken < Token
       end
 
-      class BracedWord
-        attr_accessor :parts
-
-        attr_reader :line_no, :char_no
-
-        def initialize(line_no, char_no)
-          @line_no, @char_no = line_no, char_no
-          @parts = []
-        end
-
-        def to_s
-          "{#{@parts.join ""}}"
-        end
+      class SimpleWordToken < Token
       end
 
-      class CommandSubstitution < String
+      class TextToken < Token
       end
 
-      class VariableSubstitution < String
+      class BsToken < Token
+      end
+
+      class CommandToken < Token
+      end
+
+      class VariableToken < Token
+      end
+
+      class SubExprToken < Token
+      end
+
+      class OperatorToken < Token
+      end
+
+      class ExpandWordToken < Token
       end
 
       class TclParser < Parser::Base
-        TYPE_NORMAL       = 0x0
-        TYPE_SPACE        = 0x1
-        TYPE_COMMAND_END  = 0x2
-        TYPE_SUBS         = 0x4
-        TYPE_QUOTE        = 0x8
-        TYPE_CLOSE_PAREN  = 0x10
-        TYPE_CLOSE_BRACK  = 0x20
-        TYPE_BRACE        = 0x40
-
-        CHAR_TYPE       = Hash.new { |h, k| h[k] = TYPE_NORMAL }
-
-        CHAR_TYPE["\\"] = TYPE_SUBS
-        CHAR_TYPE["$"]  = TYPE_SUBS
-        CHAR_TYPE["["]  = TYPE_SUBS
-
-        CHAR_TYPE[";"]  = TYPE_COMMAND_END
-        CHAR_TYPE["\n"] = TYPE_COMMAND_END
-
-        CHAR_TYPE["\t"] = TYPE_SPACE
-        CHAR_TYPE["\v"] = TYPE_SPACE
-        CHAR_TYPE["\f"] = TYPE_SPACE
-        CHAR_TYPE["\r"] = TYPE_SPACE
-        CHAR_TYPE[" "]  = TYPE_SPACE
-
-        CHAR_TYPE[")"]  = TYPE_CLOSE_PAREN
-
-        CHAR_TYPE["\""] = TYPE_QUOTE
-
-        CHAR_TYPE["{"]  = TYPE_BRACE
-        CHAR_TYPE["}"]  = TYPE_BRACE
-
-        attr_accessor :line_no
-
         def initialize(source, file = '(stdin)')
           @source = source
           @file = file
-
-          # Index of the last newline char
-          @last_newline = 0
-          @size = @source.size
-          @index = 0
-          @line_no = 1
 
           @commands = []
         end
 
         def parse
-          while command = parse_command
-            @commands << command
-          end
+          parse = Tcl::FFI::Parse.new
+          source_ptr = ::FFI::MemoryPointer.from_string(@source)
+          line_no = 1
+
+          begin
+            Tcl::FFI.parse_command(nil, source_ptr, -1, 0, parse)
+
+            # First, count newlines between the last command and this one
+            line_no += source_ptr.read_string(parse[:commandStart].address - source_ptr.address).count("\n")
+
+            if parse.command != ""
+              command = Command.new(parse.command, line_no)
+              command.comments = parse.comments
+              command.tokens = nest_tokens(parse.tokens)
+              @commands << command
+            end
+
+            # Then, add newlines inside this command
+            line_no += parse.command.count("\n")
+
+            # Update the source pointer to point to the end of this command
+            source_ptr = ::FFI::Pointer.new(parse[:commandStart].address + parse[:commandSize])
+          end until source_ptr == parse[:end]
         end
 
-        def tokenize
-          raise NotImplementedError, "no tokenization support for Tcl files"
+        def nest_tokens(tokens)
+          i = 0
+
+          result = []
+
+          while i < tokens.size
+            token = Token.for_type(tokens[i][:type]).new(tokens[i].content)
+
+            if tokens[i][:numComponents] > 0
+              token.tokens = nest_tokens(tokens[i+1, tokens[i][:numComponents]])
+              i += tokens[i][:numComponents] + 1
+            else
+              i += 1
+            end
+
+            result << token
+          end
+
+          result
         end
 
         def enumerator
           @commands
         end
-
-        def char_no
-          @index - @last_newline
-        end
-
-        def line_no
-          @line_no
-        end
-
-        def parse_command
-          command = Command.new(line_no, char_no)
-          command.comments = parse_comments
-
-          while true
-            consume_whitespace
-
-            if !(@index < @size)
-              break
-            end
-
-            if @source[@index] == '"'
-              parse_quoted_string
-            elsif @source[@index] == "{"
-              command.words << parse_braces
-            else
-              command.words << parse_unquoted_word
-            end
-
-            if consume_whitespace > 0
-              next
-            end
-
-            if !(@index < @size)
-              break
-            end
-
-            if (CHAR_TYPE[@source[@index]] & TYPE_COMMAND_END) != 0
-              break
-            else
-
-            end
-          end
-
-          command.words.size > 0 ? command : nil
-        end
-
-        def parse_braces
-          word = BracedWord.new(line_no, char_no)
-
-          start = @index
-          level = 1
-
-          while true
-            while @index < @size && CHAR_TYPE[@source[@index += 1]] == TYPE_NORMAL
-            end
-
-            if !(@index < @size)
-              raise "Missing closing brace"
-            end
-
-            case @source[@index]
-            when '{'
-              level += 1
-            when '}'
-              level -= 1
-              if level == 0
-                word.parts << @source[(start+1)...@index]
-                @index += 1
-                return word
-              end
-            when "\\"
-              #raise "Backslash in braces not supported yet"
-            end
-          end
-        end
-
-        def parse_unquoted_word
-          word = UnquotedWord.new(line_no, char_no)
-
-          while @index < @size && ((type = CHAR_TYPE[@source[@index]]) & (TYPE_SPACE | TYPE_COMMAND_END) == 0)
-            start = @index
-
-            if (type & TYPE_SUBS) == 0
-              while @index < @size && (@index += 1) && ((CHAR_TYPE[@source[@index]] & (TYPE_SPACE | TYPE_COMMAND_END | TYPE_SUBS)) == 0)
-              end
-
-              word.parts << @source[start...@index]
-            elsif @source[@index] == "$"
-              raise "Variables not supported yet!"
-            end
-          end
-
-          word
-        end
-
-        # def parse_quoted_string
-        #   @index += 1
-        #   parse_tokens(TYPE_QUOTE)
-
-        #   if @source[@index] != '"'
-        #     raise 'missing \"'
-        #   end
-
-        #   @index += 1
-        # end
-
-        # def parse_tokens(stop_mask)
-        #   while @index < @size && ((type = CHAR_TYPE[@source[@index]]) & stop_mask) == 0
-        #     start = @index
-        #     start_char_no = char_no
-        #     start_line_no = line_no
-
-        #     if type & TYPE_SUBS == 0
-        #       while @index < @size && (@index += 1) && ((CHAR_TYPE[@source[@index]] & (stop_mask | TYPE_SUBS)) == 0)
-        #       end
-
-        #       token = TextToken.new(start_line_no, start_char_no)
-        #       token.text = @source[start...@index]
-        #       tokens << token
-        #     elsif @source[@index] == "$"
-        #       parse_varname
-        #     end
-        #   end
-        # end
-
-        # def parse_varname
-        #   start = @index
-        #   start_char_no = char_no
-        #   start_line_no = line_no
-
-        #   @index += 1
-
-        #   while @index < @size
-        #     case @source[@index]
-        #     when "A".."Z", "a".."z", "0".."9", "_"
-        #       @index += 1
-        #     when ":"
-        #       if @source[@index+1] == ":"
-        #         @index += 2
-        #         @index += 1 while @source[@index] == ":"
-        #       else
-        #         break
-        #       end
-        #     else
-        #       break
-        #     end
-        #   end
-
-        #   if start+1 == @index
-        #     token = TextToken.new(start_line_no, start_char_no)
-        #   else
-        #     token = VariableToken.new(start_line_no, start_char_no)
-        #   end
-
-        #   token.text = @source[start...@index]
-        #   @tokens << token
-        # end
-
-        # Parses comments as defined by Tcl's rules.
-        # @return [Array<CommentNode>] the parsed CommentNode
-        def parse_comments
-          comments = []
-
-          while @index < @size
-            begin
-              consume_whitespace
-            end while @index < @size && @source[@index] == "\n" && @last_newline = @index && @index += 1 and @line_no += 1
-
-            if !(@index < @size) || @source[@index] != "#"
-              break
-            end
-
-            start = @index
-
-            comment = Comment.new(line_no, char_no)
-
-            while @index < @size
-              @index += 1
-              if @source[@index] == "\n"
-                break
-              end
-            end
-
-            comment.text = @source[start..@index]
-            comments << comment
-          end
-
-          return comments
-        end
-
-        # Consumes whitespace and returns the number of characters consumed
-        def consume_whitespace
-          start = @index
-
-          while @index < @size
-            while true
-              case @source[@index]
-              when "\t", "\v", "\f", "\r", " "
-                @index += 1
-              else
-                break
-              end
-            end
-
-            if @source[@index] != "\\"
-              break
-            end
-
-            if (@index + 1) == @size
-              break
-            end
-
-            if @source[@index+1] != "\n"
-              break
-            end
-
-            @index += 2
-            @line_no += 1
-
-            if !(@index < @size)
-              raise "incomplete parse"
-            end
-          end
-
-          @index - start
-        end
       end
+
     end
   end
 end

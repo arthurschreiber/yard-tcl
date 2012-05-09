@@ -27,12 +27,10 @@ module YARD
 
         include Parser::Tcl
 
-        def parse_block(word, opts = {})
+        def parse_block(block, opts = {})
           push_state(opts) do
-            t = Parser::Tcl::TclParser.new(word.parts[0])
-            t.line_no = word.line_no
+            t = Parser::Tcl::TclParser.new(block)
             t.parse
-
             parser.process(t.enumerator)
           end
         end
@@ -42,8 +40,14 @@ module YARD
         handles Command
 
         process do
-          if statement.words[0].parts[0] == "proc"
-            register MethodObject.new(namespace, statement.words[1].parts[0])
+          begin
+            if statement.tokens[0].tokens[0].to_s == "proc" && statement.tokens.size == 4 && statement.tokens[1].is_a?(SimpleWordToken)
+              register MethodObject.new(namespace, statement.tokens[1].to_s)
+            end
+
+          rescue Exception => e
+            p statement
+            p e
           end
         end
       end
@@ -52,11 +56,14 @@ module YARD
         handles Command
 
         process do
-          if statement.words.length > 2
-            if statement.words[0].parts[0] == "namespace" && statement.words[1].parts[0] == "eval"
-              modname = statement.words[2].parts[0]
+          if statement.tokens[0].to_s == "namespace" && statement.tokens[1].to_s == "eval"
+            if statement.tokens.size >= 4 && statement.tokens[3].is_a?(SimpleWordToken)
+              modname = statement.tokens[2].to_s
               mod = register ModuleObject.new(namespace, modname)
-              parse_block(statement.words[3], :namespace => mod)
+
+              statement.tokens[2..-1].each do |token|
+                parse_block(token.tokens[0].to_s, :namespace => mod)
+              end
             end
           end
         end
