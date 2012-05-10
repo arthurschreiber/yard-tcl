@@ -212,6 +212,8 @@ module YARD
 
             # Update the source pointer to point to the end of this command
             source_ptr = ::FFI::Pointer.new(parse[:commandStart].address + parse[:commandSize])
+          ensure
+            Tcl::FFI.free_parse(parse)
           end until source_ptr == parse[:end]
         end
 
