@@ -40,14 +40,8 @@ module YARD
         handles Command
 
         process do
-          begin
-            if statement.tokens[0].tokens[0].to_s == "proc" && statement.tokens.size == 4 && statement.tokens[1].is_a?(SimpleWordToken)
-              register MethodObject.new(namespace, statement.tokens[1].to_s)
-            end
-
-          rescue Exception => e
-            p statement
-            p e
+          if statement[0][0].to_s == "proc" && statement.size == 4 && statement[1].is_a?(SimpleWordToken)
+            register MethodObject.new(namespace, statement[1].to_s)
           end
         end
       end
@@ -56,13 +50,13 @@ module YARD
         handles Command
 
         process do
-          if statement.tokens[0].to_s == "namespace" && statement.tokens[1].to_s == "eval"
-            if statement.tokens.size >= 4 && statement.tokens[3].is_a?(SimpleWordToken)
-              modname = statement.tokens[2].to_s
+          if statement[0].to_s == "namespace" && statement[1].to_s == "eval"
+            if statement.size >= 4 && statement[3].is_a?(SimpleWordToken)
+              modname = statement[2].to_s
               mod = register ModuleObject.new(namespace, modname)
 
-              statement.tokens[2..-1].each do |token|
-                parse_block(token.tokens[0].to_s, :namespace => mod)
+              statement[2..-1].each do |token|
+                parse_block(token[0].to_s, :namespace => mod)
               end
             end
           end

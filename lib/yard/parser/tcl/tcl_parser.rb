@@ -91,37 +91,42 @@ module YARD
         attach_function :free_parse, :Tcl_FreeParse, [:pointer], :void
       end
 
-      class Command
-        attr_accessor :tokens
-        attr_reader :line
+      class Command < Array
         attr_accessor :comments
+        attr_accessor :line_range
+        attr_accessor :file
 
-        def initialize(content, line)
-          @content = content
-          @line = line
-          @tokens = []
-          @comments = ""
+        def initialize(line, source, comments)
+          @source = source
+          @comments = (comments || "")
+          @line_range = ((line+@comments.count("\n"))..line+source.count("\n"))
         end
 
+        # Tcl comments have no hash flag set
         def comments_hash_flag
           false
         end
 
-        def comments_range
-          line
+        def source
+          @source
+        end
+
+        def line
+          @line_range.first
+        end
+
+        def first_line
+          source.split(/\r?\n/).first.strip
         end
 
         def show
-          ""
+          "\t#{line}: #{first_line}"
         end
       end
 
-      class Token
-        attr_accessor :tokens
-
+      class Token < Array
         def initialize(content)
           @content = content
-          @tokens = []
         end
 
         def to_s
@@ -201,14 +206,13 @@ module YARD
             line_no += source_ptr.read_string(parse[:commandStart].address - source_ptr.address).count("\n")
 
             if parse.command != ""
-              command = Command.new(parse.command, line_no)
-              command.comments = parse.comments
-              command.tokens = nest_tokens(parse.tokens)
+              command = Command.new(line_no, parse.command, parse.comments)
+              command.concat nest_tokens(parse.tokens)
+
+              line_no = command.line_range.last
+
               @commands << command
             end
-
-            # Then, add newlines inside this command
-            line_no += parse.command.count("\n")
 
             # Update the source pointer to point to the end of this command
             source_ptr = ::FFI::Pointer.new(parse[:commandStart].address + parse[:commandSize])
@@ -226,7 +230,7 @@ module YARD
             token = Token.for_type(tokens[i][:type]).new(tokens[i].content)
 
             if tokens[i][:numComponents] > 0
-              token.tokens = nest_tokens(tokens[i+1, tokens[i][:numComponents]])
+              token.concat nest_tokens(tokens[i+1, tokens[i][:numComponents]])
               i += tokens[i][:numComponents] + 1
             else
               i += 1
