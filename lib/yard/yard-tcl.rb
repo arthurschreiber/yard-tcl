@@ -27,10 +27,10 @@ module YARD
 
         include Parser::Tcl
 
-        def parse_block(block, opts = {})
+        def parse_block(token, opts = {})
           push_state(opts) do
-            t = Parser::Tcl::TclParser.new(block)
-            t.parse
+            t = Parser::Tcl::TclParser.new(token.to_s)
+            t.parse(token.line_range.first)
             parser.process(t.enumerator)
           end
         end
@@ -56,7 +56,7 @@ module YARD
               mod = register ModuleObject.new(namespace, modname)
 
               statement[2..-1].each do |token|
-                parse_block(token[0].to_s, :namespace => mod)
+                parse_block(token[0], :namespace => mod)
               end
             end
           end

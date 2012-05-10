@@ -100,8 +100,8 @@ module YARD
           @source = source
           @comments = (comments || "")
 
-          @comments_range = (line..line+@comments.count("\n"))
-          @line_range = (@comments_range.last..line+source.count("\n"))
+          @comments_range = (line..(line+@comments.count("\n")))
+          @line_range = (@comments_range.last..(line+source.count("\n")))
         end
 
         # Tcl comments have no hash flag set
@@ -124,15 +124,40 @@ module YARD
         def show
           "\t#{line}: #{first_line}"
         end
+
+        def tokens=(tokens)
+          line_no = @line_range.first
+
+          while current = tokens.shift
+            token = Token.for_type(current[:type]).new(current.content, line_no)
+            line_no = token.line_range.last
+            token.tokens = tokens.slice!(0, current[:numComponents])
+            self << token
+          end
+        end
       end
 
       class Token < Array
-        def initialize(content)
+        attr_reader :line_range
+
+        def initialize(content, line)
           @content = content
+          @line_range = (line..line+content.count("\n"))
         end
 
         def to_s
           @content
+        end
+
+        def tokens=(tokens)
+          line_no = @line_range.first
+
+          while current = tokens.shift
+            token = Token.for_type(current[:type]).new(current.content, line_no)
+            line_no = token.line_range.last
+            token.tokens = tokens.slice!(0, current[:numComponents])
+            self << token
+          end
         end
 
         class << self
@@ -196,20 +221,19 @@ module YARD
           @commands = []
         end
 
-        def parse
+        def parse(line_no = 1)
           parse = Tcl::FFI::Parse.new
           source_ptr = ::FFI::MemoryPointer.from_string(@source)
-          line_no = 1
 
           begin
             Tcl::FFI.parse_command(nil, source_ptr, -1, 0, parse)
 
             # First, count newlines between the last command and this one
-            line_no += source_ptr.read_string(parse[:commandStart].address - source_ptr.address).count("\n")
+            line_no += source_ptr.read_string(parse[:commandStart].address - source_ptr.address).count("\n") - 1
 
             if parse.command != ""
               command = Command.new(line_no, parse.command, parse.comments)
-              command.concat nest_tokens(parse.tokens)
+              command.tokens = parse.tokens
 
               line_no = command.line_range.last
 
@@ -221,27 +245,6 @@ module YARD
           ensure
             Tcl::FFI.free_parse(parse)
           end until source_ptr == parse[:end]
-        end
-
-        def nest_tokens(tokens)
-          i = 0
-
-          result = []
-
-          while i < tokens.size
-            token = Token.for_type(tokens[i][:type]).new(tokens[i].content)
-
-            if tokens[i][:numComponents] > 0
-              token.concat nest_tokens(tokens[i+1, tokens[i][:numComponents]])
-              i += tokens[i][:numComponents] + 1
-            else
-              i += 1
-            end
-
-            result << token
-          end
-
-          result
         end
 
         def enumerator
