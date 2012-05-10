@@ -92,14 +92,16 @@ module YARD
       end
 
       class Command < Array
-        attr_accessor :comments
-        attr_accessor :line_range
-        attr_accessor :file
+        attr_reader :line_range
+        attr_reader :comments_range
+        attr_reader :comments
 
         def initialize(line, source, comments)
           @source = source
           @comments = (comments || "")
-          @line_range = ((line+@comments.count("\n"))..line+source.count("\n"))
+
+          @comments_range = (line..line+@comments.count("\n"))
+          @line_range = (@comments_range.last..line+source.count("\n"))
         end
 
         # Tcl comments have no hash flag set
