@@ -223,9 +223,12 @@ module YARD
 
         def parse(line_no = 1)
           parse = Tcl::FFI::Parse.new
-          source_ptr = ::FFI::MemoryPointer.from_string(@source)
+
+          current_position = 0
 
           begin
+            source_ptr = ::FFI::MemoryPointer.from_string(@source[current_position..-1])
+
             Tcl::FFI.parse_command(nil, source_ptr, -1, 0, parse)
 
             # First, count newlines between the last command and this one
@@ -240,8 +243,7 @@ module YARD
               @commands << command
             end
 
-            # Update the source pointer to point to the end of this command
-            source_ptr = ::FFI::Pointer.new(parse[:commandStart].address + parse[:commandSize])
+            current_position += (parse[:commandStart].address - parse[:string].address) + parse[:commandSize]
           ensure
             Tcl::FFI.free_parse(parse)
           end until source_ptr == parse[:end]
