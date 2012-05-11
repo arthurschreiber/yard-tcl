@@ -75,7 +75,7 @@ module YARD
 
           def comments
             if self[:commentStart].address != 0
-              self[:commentStart].read_string(self[:commentSize]).to_s.gsub(/^(\#+)\s{0,1}/, '')
+              self[:commentStart].read_string(self[:commentSize]).to_s.gsub(/^\s*(\#+)\s{0,1}/, '')
             end
           end
 
