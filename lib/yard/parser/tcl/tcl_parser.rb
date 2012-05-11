@@ -229,7 +229,10 @@ module YARD
           begin
             source_ptr = ::FFI::MemoryPointer.from_string(@source[current_position..-1])
 
-            Tcl::FFI.parse_command(nil, source_ptr, -1, 0, parse)
+            if Tcl::FFI.parse_command(nil, source_ptr, -1, 0, parse) != 0
+              puts "Error while parsing: #{@file}"
+              return
+            end
 
             # First, count newlines between the last command and this one
             line_no += source_ptr.read_string(parse[:commandStart].address - source_ptr.address).count("\n") - 1
