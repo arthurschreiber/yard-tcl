@@ -1,9 +1,20 @@
 yard-tcl: A Tcl Documentation Tool
 ==================================
 
-![I have no idea what I'm doing](http://i.imgur.com/wOtlZ.jpg)
+**Homepage**:       [http://nokarma.org](http://nokarma.org/yard-tcl/)
+**Author**:         Arthur Schreiber
+**Copyright**:      2012
+**License**:        MIT License
 
-This is an experiment to use [yard](https://github.com/lsegal/yard) to create
-a documentation tool for the highly dynamic Tcl programming language.
+Synopsis
+--------
 
-Beware, here be dragons!
+yard-tcl is a plugin for the [YARD](http://yardoc.org/) documentation tool that allows to create great
+documentation for software written in [Tcl](http://www.tcl.tk/).
+
+Features
+--------
+
+**Robust Tcl Parsing**: yard-tcl uses the the parsing functions from Tcl,
+through [FFI](https://github.com/ffi/ffi). This means that if Tcl can parse
+your code files, so can yard-tcl.
