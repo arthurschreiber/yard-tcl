@@ -1,7 +1,7 @@
 yard-tcl: A Tcl Documentation Tool
 ==================================
 
-**Homepage**:       [http://nokarma.org](http://nokarma.org/yard-tcl/)
+**Homepage**:       [http://nokarma.org/yard-tcl/](http://nokarma.org/yard-tcl/)
 **Author**:         Arthur Schreiber
 **Copyright**:      2012
 **License**:        MIT License
